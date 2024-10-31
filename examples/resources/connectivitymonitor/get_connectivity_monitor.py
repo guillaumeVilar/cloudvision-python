@@ -14,13 +14,28 @@ from arista.connectivitymonitor.v1.services import (
     ProbeStreamRequest
 )
 from arista.connectivitymonitor.v1 import models
-from cloudvision.Connector.grpc_client import GRPCClient, create_query
+from cloudvision.Connector.grpc_client import create_query
 
+from arista.inventory.v1 import services
+RPC_TIMEOUT = 30  # in seconds
 
 debug = False
 
 parser = argparse.ArgumentParser(add_help=True)
 
+
+def getSerialNumberToHostnameDict(channel):
+    """
+    Return a json dict with the mapping S/N --> hostname of all devices known to CVP.
+    """
+    device_dict = {}
+    stub = services.DeviceServiceStub(channel)
+    # create a stream request
+    get_all_req = services.DeviceStreamRequest()
+     # make the GetAll request and loop over the streamed responses
+    for resp in stub.GetAll(get_all_req, timeout=RPC_TIMEOUT):
+        device_dict[resp.value.key.device_id.value] = resp.value.hostname.value
+    return device_dict
 
 def getConnMon(channel, device=None):
     connMonGetAll = ProbeStatsStreamRequest()
@@ -126,10 +141,9 @@ def getSwitchInfo(client, device):
     return get(client, dataset, pathElts)
 
 
-def report(client, data, configData, device):
-    switchInfo = getSwitchInfo(client, device)
+def report(serialNumberToHostnameDict, data, configData, device):
     for k, v in data.items():
-        hostname = switchInfo[k[0]]["hostname"]
+        hostname = serialNumberToHostnameDict[k[0]]
         host = k[1]
         vrf = k[2]
         intf = k[3]
@@ -161,8 +175,8 @@ def main(apiserverAddr, token=None, certs=None, key=None, ca=None):
     with grpc.secure_channel(apiserverAddr, connCreds) as channel:
         data = getConnMon(channel, args.device)
         configData = getConnMonCfg(channel, args.device)
-        with GRPCClient(apiserverAddr, token=token, key=key, ca=ca, certs=certs) as client:
-            report(client, data, configData, args.device)
+        serialNumberToHostnameDict = getSerialNumberToHostnameDict(channel)
+        report(serialNumberToHostnameDict, data, configData, args.device)
 
 
 if __name__ == "__main__":
