@@ -122,25 +122,6 @@ def getConnMonCfg(channel, device=None):
     return result
 
 
-def get(client, dataset, pathElts):
-    """Returns a query on a path element"""
-    result = {}
-    query = [create_query([(pathElts, [])], dataset)]
-
-    for batch in client.get(query):
-        for notif in batch["notifications"]:
-            if debug:
-                print(notif["updates"])
-            result.update(notif["updates"])
-    return result
-
-
-def getSwitchInfo(client, device):
-    pathElts = ["DatasetInfo", "Devices"]
-    dataset = "analytics"
-    return get(client, dataset, pathElts)
-
-
 def report(serialNumberToHostnameDict, data, configData, device):
     for k, v in data.items():
         hostname = serialNumberToHostnameDict[k[0]]
