@@ -32,10 +32,11 @@ def getSerialNumberToHostnameDict(channel):
     stub = services.DeviceServiceStub(channel)
     # create a stream request
     get_all_req = services.DeviceStreamRequest()
-     # make the GetAll request and loop over the streamed responses
+    # make the GetAll request and loop over the streamed responses
     for resp in stub.GetAll(get_all_req, timeout=RPC_TIMEOUT):
         device_dict[resp.value.key.device_id.value] = resp.value.hostname.value
     return device_dict
+
 
 def getConnMon(channel, device=None):
     connMonGetAll = ProbeStatsStreamRequest()
@@ -56,12 +57,13 @@ def getConnMon(channel, device=None):
     result = {}
 
     for resp in connStub.GetAll(connMonGetAll):
+        device_id = resp.value.key.device_id.value
         vrfName = resp.value.key.vrf.value
         hostName = resp.value.key.host.value
         intf = resp.value.key.source_intf.value
 
         connMonKeyVals = (
-            connMonKey.device_id.value,
+            device_id,
             hostName,
             vrfName,
             intf
@@ -100,11 +102,12 @@ def getConnMonCfg(channel, device=None):
     result = {}
 
     for resp in configStub.GetAll(configGetAll):
+        device_id = resp.value.key.device_id.value
         vrfName = resp.value.key.vrf.value
         hostName = resp.value.key.host.value
 
         probeKeyVals = (
-            probeKey.device_id.value,
+            device_id,
             hostName,
             vrfName,
         )
@@ -122,9 +125,11 @@ def getConnMonCfg(channel, device=None):
     return result
 
 
-def report(serialNumberToHostnameDict, data, configData, device):
+def report(serialNumberToHostnameDict, data, configData):
+    report_list = []
     for k, v in data.items():
-        hostname = serialNumberToHostnameDict[k[0]]
+        serial_number = k[0]
+        hostname = serialNumberToHostnameDict[serial_number]
         host = k[1]
         vrf = k[2]
         intf = k[3]
@@ -132,14 +137,31 @@ def report(serialNumberToHostnameDict, data, configData, device):
         jitter = v["jitter"]
         latency = v["latency"]
         pktloss = v["packet_loss"]
-        if "ip_addr" in configData[(device, host, vrf)]:
-            ipaddr = configData[(device, host, vrf)]["ip_addr"]
+        if "ip_addr" in configData[(serial_number, host, vrf)]:
+            ipaddr = configData[(serial_number, host, vrf)]["ip_addr"]
         else:
             ipaddr = ""
-        hdr_part1 = f"{hostname + ' (' + vrf + '/' + intf + ') to ' + host:<50}"
-        hdr_part2 = f"{ipaddr:<30}{str(httpResp) + 'ms':<30}{str(jitter) + 'ms':<30}"
-        hdr_part3 = f"{str(latency) + 'ms':<30}{str(pktloss)  + '%':<30}"
-        print(hdr_part1 + hdr_part2 + hdr_part3)
+        if "description" in configData[(serial_number, host, vrf)]:
+            description = configData[(serial_number, host, vrf)]["description"]
+        else:
+            description = ""
+
+        report_list.append({
+            "hostname": hostname,
+            "serial_number": serial_number,
+            "vrf": vrf,
+            "interface": intf,
+            "host": host,
+            "ip_addr": ipaddr,
+            "description": description,
+            "http_response": httpResp,
+            "jitter": jitter,
+            "latency": latency,
+            "packet_loss": pktloss
+        })
+
+    print(report_list)
+    return report_list
 
 
 def main(apiserverAddr, token=None, certs=None, key=None, ca=None):
@@ -157,7 +179,7 @@ def main(apiserverAddr, token=None, certs=None, key=None, ca=None):
         data = getConnMon(channel, args.device)
         configData = getConnMonCfg(channel, args.device)
         serialNumberToHostnameDict = getSerialNumberToHostnameDict(channel)
-        report(serialNumberToHostnameDict, data, configData, args.device)
+        report(serialNumberToHostnameDict, data, configData)
 
 
 if __name__ == "__main__":
