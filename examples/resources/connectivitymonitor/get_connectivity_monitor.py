@@ -126,7 +126,7 @@ def getConnMonCfg(channel, device=None):
 
 
 def report(serialNumberToHostnameDict, data, configData):
-    report_list = []
+    connectivity_reports = []
     for k, v in data.items():
         serial_number = k[0]
         hostname = serialNumberToHostnameDict[serial_number]
@@ -146,7 +146,7 @@ def report(serialNumberToHostnameDict, data, configData):
         else:
             description = ""
 
-        report_list.append({
+        connectivity_reports.append({
             "hostname": hostname,
             "serial_number": serial_number,
             "vrf": vrf,
@@ -160,8 +160,8 @@ def report(serialNumberToHostnameDict, data, configData):
             "packet_loss": pktloss
         })
 
-    print(report_list)
-    return report_list
+    print(connectivity_reports)
+    return connectivity_reports
 
 
 def main(apiserverAddr, token=None, certs=None, key=None, ca=None):
